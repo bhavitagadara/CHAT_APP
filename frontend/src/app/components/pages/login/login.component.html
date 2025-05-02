@@ -1,0 +1,23 @@
+<div class="container mt-5">
+    <h2 class="text-center text-primary">Login</h2>
+  
+    <div class="card p-4 shadow mt-3">
+      <div class="mb-3">
+        <label class="form-label">First Name</label>
+        <input type="text" class="form-control" [(ngModel)]="firstName" placeholder="Enter first name">
+      </div>
+  
+      <div class="mb-3">
+        <label class="form-label">Last Name</label>
+        <input type="text" class="form-control" [(ngModel)]="lastName" placeholder="Enter last name">
+      </div>
+  
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-control" [(ngModel)]="email" placeholder="Enter email">
+      </div>
+  
+      <button class="btn btn-primary w-100" (click)="login()">Login</button>
+    </div>
+  </div>
+  
