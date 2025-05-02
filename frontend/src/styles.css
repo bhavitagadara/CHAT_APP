@@ -1,0 +1,11 @@
+/* You can add global styles to this file, and also import other style files */
+.toast-top-right {
+    top: 60px !important; /* Move toast below navbar */
+  }
+  
+  .toast-info {
+    background-color: #007bff !important; /* Blue background */
+    color: white !important;
+    font-size: 16px !important;
+  }
+  
