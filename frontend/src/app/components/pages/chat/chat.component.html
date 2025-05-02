@@ -1,0 +1,319 @@
+<div class="container-fluid vh-100 d-flex">
+  <!-- Sidebar -->
+  <div class="col-md-3 bg-dark text-white p-3 overflow-auto">
+    <app-profile></app-profile>
+    <button class="btn btn-success w-100 mb-2" (click)="openCreateGroupModal()">+ Create Group</button>
+
+    <h5 class="text-center">Groups</h5>
+    <ul class="list-group">
+      <li *ngFor="let group of groups"
+        class="list-group-item bg-dark text-white border-0 d-flex justify-content-between align-items-center"
+        (click)="selectGroup(group)" style="cursor: pointer;">
+
+        <div>
+          <i class="fa-solid fa-user-group px-2"></i> {{ group.name }}
+        </div>
+
+        <!-- Options dropdown -->
+        <div class="position-relative" (click)="$event.stopPropagation()">
+          <i class="fa-solid fa-ellipsis-vertical" style="cursor: pointer;" (click)="toggleGroupOptions(group._id)"></i>
+
+          <!-- Options menu -->
+          <div *ngIf="showGroupOptionsFor === group._id" class="dropdown-menu show position-absolute end-0 mt-2"
+            style="display: block; background-color: white; border: 1px solid #ccc; min-width: 150px; z-index: 1000;">
+            <button class="dropdown-item" *ngIf="group.admin === loggedInUser?._id" (click)="openAddUserModal(group)"><i
+                class="fa-solid fa-plus"></i> Add User</button>
+            <button class="dropdown-item" (click)="viewGroupMembers(group)"><i class="fa-solid fa-user-group"></i> View
+              Members</button>
+            <button class="dropdown-item text-danger" (click)="exitGroup(group._id)"><i
+                class="fa-solid fa-door-open"></i> Exit Group</button>
+            <button class="dropdown-item text-danger" *ngIf="group.admin === loggedInUser?._id"
+              (click)="openRemoveUserDialog(group)"><i class="fa-solid fa-user-slash"></i> Remove User</button>
+            <button class="dropdown-item text-danger" *ngIf="group.admin === loggedInUser?._id"
+              (click)="confirmDeleteGroup(group)"><i class="fa-solid fa-trash"></i> Delete Group</button>
+          </div>
+        </div>
+      </li>
+    </ul>
+
+    <h3 class="text-center mt-4">Active Users</h3>
+    <ul class="list-group list-group-flush">
+      <li *ngFor="let user of users" class="list-group-item bg-dark text-white border-0" (click)="selectUser(user)"
+        [class.active]="selectedUser?.email === user.email" style="cursor: pointer;">
+        <i class="fa-solid fa-circle-user px-2"></i> {{ user.firstName }} {{ user.lastName }}
+      </li>
+    </ul>
+  </div>
+
+  <!-- Chat Section -->
+  <div class="col-md-9 d-flex flex-column p-4">
+    <h2 class=" d-flex flex-column p-2 text-bg-success rounded-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span *ngIf="selectedGroup">
+            <i class="fa-solid fa-user-group px-2"></i>{{ selectedGroup.name }}
+          </span>
+          <span *ngIf="!selectedGroup && selectedUser">
+            <i class="fa-solid fa-circle-user px-2"></i>{{ selectedUser.firstName }} {{ selectedUser.lastName }}<br />
+          </span>
+          <span *ngIf="!selectedGroup && !selectedUser">...</span>
+        </div>
+
+        <!-- Video Call Button -->
+        <div *ngIf="selectedUser">
+          <button class="btn btn-light btn-sm" (click)="startCallHandler()">
+            <i class="fa-solid fa-video"></i>
+          </button>
+        </div>
+      </div>
+    </h2>
+
+    <!-- Multi-Select Toggle -->
+    <div class="mb-2 text-end">
+      <button class="btn btn-warning" (click)="toggleMultiSelect()" [disabled]="!selectedUser && !selectedGroup">
+        {{ isMultiSelectMode ? 'Cancel Multi-Select' : 'Enable Multi-Select' }}
+      </button>
+    </div>
+
+    <!-- Chat Messages -->
+    <div class="chat-box flex-grow-1 border rounded p-3 overflow-auto bg-light" #chatContainer>
+      <div *ngFor="let msg of messages" class="d-flex mb-2"
+        [ngClass]="{'justify-content-end': msg.sender === loggedInUser.email, 'justify-content-start': msg.sender !== loggedInUser.email}">
+
+        <div class="p-2 rounded shadow-sm position-relative" [ngClass]="{
+               'bg-primary text-white': msg.sender === loggedInUser.email, 
+               'bg-white text-dark': msg.sender !== loggedInUser.email
+             }" style="max-width: 75%; word-wrap: break-word;">
+
+          <!-- Multi-Select Checkbox -->
+          <div *ngIf="isMultiSelectMode" class="position-absolute" style="top: 5px; left: 5px;">
+            <input type="checkbox" (click)="toggleMessageSelection(msg._id)">
+          </div>
+
+          <!-- Reply Preview -->
+          <div *ngIf="msg.replyTo" class="p-2 mb-1 rounded bg-light text-dark border-start border-primary">
+            <small><strong>{{ getSenderName(msg.replyTo.sender) }}:</strong></small>
+            <ng-container *ngIf="msg.replyTo.fileUrl; else replyText">
+              <ng-container *ngIf="isImage(msg.replyTo.fileUrl); else fileLink">
+                <img [src]="msg.replyTo.fileUrl" style="max-width: 100px;">
+              </ng-container>
+              <ng-template #fileLink>
+                <p><a [href]="msg.replyTo.fileUrl" target="_blank">View File</a></p>
+              </ng-template>
+            </ng-container>
+            <ng-template #replyText>
+              <p>{{ msg.replyTo.message }}</p>
+            </ng-template>
+          </div>
+
+          <!-- Message Body -->
+          <p class="mb-0">
+            <strong>{{ msg.sender === loggedInUser.email ? 'You' : getSenderName(msg.sender) }}:</strong>
+            {{ msg.message }}
+          </p>
+
+          <!-- Attachments -->
+          <ng-container *ngIf="msg.fileUrl">
+            <ng-container *ngIf="isImage(msg.fileUrl); else fileLinkMain">
+              <a [href]="msg.fileUrl" target="_blank" class="text-warning">
+                <img [src]="msg.fileUrl" alt="Image preview" style="max-width: 100%; height: auto; border-radius: 4px;">
+              </a>
+            </ng-container>
+            <ng-template #fileLinkMain>
+              <p class="mb-0">
+                <a [href]="msg.fileUrl" target="_blank" class="text-warning">View File</a>
+              </p>
+            </ng-template>
+          </ng-container>
+
+          <!-- Message Options -->
+          <div *ngIf="!isMultiSelectMode" class="position-absolute" style="top: 5px; right: 2px;">
+            <i class="fa-solid fa-ellipsis-vertical" style="cursor: pointer;" (click)="toggleOptions(msg)"></i>
+            <div *ngIf="msg.showOptions" class="dropdown-menu show" style="position: absolute; top: 20px; right: 0;">
+              <button class="dropdown-item" (click)="replyMessage(msg)">Reply</button>
+              <!-- <button class="dropdown-item" (click)="openForwardModal(msg)">Forward</button> -->
+              <button *ngIf="msg.sender === loggedInUser.email" class="dropdown-item text-danger"
+                (click)="confirmDelete(msg._id!)">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multi-Select Actions -->
+      <div *ngIf="isMultiSelectMode" class="mt-3 text-center">
+        <button class="btn btn-primary me-2" (click)="openForwardModalMulti()">Forward Selected</button>
+        <button class="btn btn-danger" (click)="deleteMessages()">Delete Selected</button>
+      </div>
+
+      <!-- Replying Section -->
+      <div *ngIf="replyingTo" class="bg-light p-2 mb-2 border-start border-primary rounded">
+        <small>Replying to {{ getSenderName(replyingTo.sender) }}</small>
+        <button class="btn-close float-end" (click)="replyingTo = null"></button>
+      </div>
+    </div>
+
+    <!-- Message Input -->
+    <div class="d-flex mt-3 align-items-center">
+      <input type="text" [(ngModel)]="message" class="form-control me-2" placeholder="Enter message"
+        [disabled]="!selectedUser && !selectedGroup">
+
+      <!-- File Upload -->
+      <input type="file" #fileInput (change)="uploadFile($event)" [disabled]="!selectedUser && !selectedGroup" hidden>
+      <button (click)="fileInput.click()" class="btn btn-primary me-2">
+        <i class="fa-solid fa-paperclip"></i>
+      </button>
+
+      <!-- Emoji Picker -->
+      <button (click)="openEmojiPicker()" class="btn btn-primary me-2" [disabled]="!selectedUser && !selectedGroup">
+        <i class="fa-regular fa-face-smile"></i>
+      </button>
+      <emoji-mart *ngIf="shoeEmojiPicker" (emojiSelect)="addEmoji($event)"></emoji-mart>
+
+      <!-- Send Button -->
+      <button (click)="selectedGroup ? sendGroupMessage() : sendMessage()" class="btn btn-primary"
+        [disabled]="!selectedUser && !selectedGroup">
+        <i class="bi bi-send-fill"></i> Send
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Group Modal -->
+<div *ngIf="showCreateGroupModal" class="modal d-block">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Group</h5>
+        <button type="button" class="btn-close" (click)="closeCreateGroupModal()"></button>
+      </div>
+      <div class="modal-body">
+        <label>Group Name:</label>
+        <input type="text" [(ngModel)]="groupName" class="form-control mb-2" placeholder="Enter group name">
+
+        <h6>Select Users:</h6>
+        <ul class="list-group">
+          <li *ngFor="let user of contacts" class="list-group-item">
+            <input type="checkbox" [value]="user.email" (change)="toggleUserSelection(user)">
+            {{ user.firstName }} {{ user.lastName }}
+          </li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeCreateGroupModal()">Cancel</button>
+        <button class="btn btn-success" (click)="createGroup()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Forward Messages Modal -->
+<div *ngIf="showForwardModal" class="modal d-block">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Forward Messages</h5>
+        <button type="button" class="btn-close" (click)="showForwardModal = false"></button>
+      </div>
+      <div class="modal-body">
+        <p>Select contacts to forward messages to:</p>
+        <ul class="list-group">
+          <li *ngFor="let contact of contacts" class="list-group-item">
+            <input type="checkbox" [(ngModel)]="contact.selected"> {{ contact.firstName }} {{ contact.lastName }}
+          </li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="showForwardModal = false">Cancel</button>
+        <button class="btn btn-primary" (click)="forwardMessages()">Forward</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Add User Modal -->
+<div *ngIf="showAddUserModal" class="modal d-block">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-3">
+      <h5 class="modal-title">Add User to Group</h5>
+      <ul class="list-group mt-2">
+        <li *ngIf="filteredUsersToAdd.length === 0" class="list-group-item text-muted">
+          No users available to add.
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center"
+          *ngFor="let user of filteredUsersToAdd">
+          <span>{{ user.firstName }} {{ user.lastName }} ({{ user.email }})</span>
+          <button class="btn btn-sm btn-success" (click)="confirmAddUserToGroup(user.email)">Add</button>
+        </li>
+      </ul>
+
+      <div class="mt-3 text-end">
+        <button class="btn btn-secondary" (click)="showAddUserModal = false">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View Members Modal -->
+<div *ngIf="showViewMembersModal" class="modal d-block">
+  <div class="modal-dialog">
+    <div class="modal-content p-3">
+      <h5 class="modal-title">Members of {{ selectedGroup?.name }}</h5>
+      <ul class="list-group mt-2">
+        <li *ngFor="let member of selectedGroup?.members" class="list-group-item">
+          {{ member.firstName }} {{ member.lastName }}
+        </li>
+      </ul>
+      <div class="mt-3 text-end">
+        <button class="btn btn-secondary" (click)="showViewMembersModal = false">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Remove User Modal -->
+<div *ngIf="showRemoveUserDropdown" class="modal d-block">
+  <div class="modal-dialog">
+    <div class="modal-content bg-white p-4 rounded shadow">
+      <h5>Select user to remove from {{ selectedGroupForRemoval?.name }}</h5>
+      <ul class="list-group mb-3">
+        <li *ngFor="let user of removableUsers"
+          class="list-group-item d-flex justify-content-between align-items-center">
+          {{ user.firstName }} {{ user.lastName }} ({{ user.email }})
+          <button class="btn btn-sm btn-danger" (click)="removeUserFromGroup(selectedGroupForRemoval._id, user.email)">
+            Remove
+          </button>
+        </li>
+      </ul>
+      <div class="text-end">
+        <button class="btn btn-secondary" (click)="cancelUserRemoval()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Incoming Call Modal -->
+<div *ngIf="incomingCall"
+  class="incoming-call-modal position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex align-items-center justify-content-center z-3">
+  <div class="incoming-call-window bg-light p-4 rounded shadow text-center">
+    <h5>{{ callerName }} is calling you...</h5>
+    <div class="mt-3 d-flex justify-content-around">
+      <button class="btn btn-success me-2" (click)="acceptCall(callerId)">Accept</button>
+      <button class="btn btn-danger" (click)="rejectCall(callerId)">Reject</button>
+    </div>
+  </div>
+</div>
+
+<!-- Video Call UI -->
+<div *ngIf="callInProgress"
+  class="video-call-modal position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex align-items-center justify-content-center z-3">
+  <div class="video-call-window bg-light p-3 rounded shadow">
+    <h5 class="text-center">Video Call In Progress</h5>
+    <div class="d-flex justify-content-around my-2 flex-wrap">
+      <video id="localVideo" autoplay playsinline muted class="border border-success rounded mb-2" width="200"></video>
+      <video id="remoteVideo" autoplay playsinline class="border border-primary rounded mb-2" width="200"></video>
+    </div>
+    <div class="text-center mt-3">
+      <button class="btn btn-danger" (click)="endCall()">End Call</button>
+    </div>
+  </div>
+</div>
